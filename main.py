@@ -1,27 +1,39 @@
 import configparser
-import shutil
 import os
-from omdb.get_omdb_api import get_omdb
-from get_title_name import get_title_name
+import time
+from move_file import move_file
+
+# Get/set config vars
 config = configparser.ConfigParser()
 CURRENT_DIR = os.path.dirname(os.path.realpath(__file__))
-# Get config files
 config_file = os.path.join(CURRENT_DIR, 'config', 'config.ini')
 config.read(config_file)
-omdb_url = config.get('DEFAULT', 'OMDBAPIUrl')
 download_dir = config.get('DEFAULT', 'DownloadDirectory')
 TV_DIR = config.get('DEFAULT', 'TVDirectory')
 MOVIE_DIR = config.get('DEFAULT', 'MovieDirectory')
+video_filetypes = tuple(config.get('DEFAULT', 'FileTypes').split(','))
+# Configs set
 
-for title_name in os.listdir(download_dir):
-    film_details = get_title_name(download_dir, title_name)
-    current_dirpath = os.path.join(download_dir, title_name)
-
-    if(film_details['type'] == 'tv'):
-        dest_filepath = os.path.join(TV_DIR, film_details['title'], 'S'+ film_details['season'])
-        if not (os.path.exists(dest_filepath)):
-            os.makedirs(dest_filepath)
-        shutil.move(current_dirpath, dest_filepath)
-    elif(film_details['type'] == 'movie'):
-        dest_filepath = os.path.join(MOVIE_DIR, film_details['title'])
-        shutil.move(current_dirpath, dest_filepath )
+before = dict ([(f, None) for f in os.listdir (download_dir)])
+while 1:
+    after = dict ([(f, None) for f in os.listdir (download_dir)])
+    added = [f for f in after if not f in before]
+    removed = [f for f in before if not f in after]
+    if added: 
+        print "New item detected in directory"
+        for dirpath, dirname, filenames in os.walk(download_dir):
+            if not filenames:
+                pass
+            elif ((dirpath != download_dir) and (filenames[0].lower().endswith(video_filetypes))): # Video file detected
+                _file = os.path.join(dirpath, filenames[0])
+                print "Opening file to check if if file is locked"
+                try:
+                    fp = open(_file)
+                except IOError as e:
+                    print "File is locked. Not attempting to move to directory yet"
+                else:
+                    print "Successfully opened file, moving to directory."
+                    fp.close()
+                    move_file(download_dir, TV_DIR, MOVIE_DIR)
+                    before = after
+    time.sleep(10)
